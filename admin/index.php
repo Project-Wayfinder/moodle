@@ -764,6 +764,7 @@ if (during_initial_install()) {
     $adminids = explode(',', $CFG->siteadmins);
     $adminuser = get_complete_user_data('id', reset($adminids));
 
+
     if ($adminuser->password === 'adminsetuppending') {
         // login user and let him set password and admin details
         $adminuser->newadminuser = 1;
