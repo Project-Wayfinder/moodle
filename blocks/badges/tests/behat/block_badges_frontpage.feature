@@ -16,7 +16,7 @@ Feature: Enable Block Badges on the frontpage and view awarded badges
       | teacher1 | C1 | editingteacher |
     And I log in as "admin"
     And I am on site homepage
-    And I navigate to "Turn editing on" in current page administration
+    And I turn editing mode on
     And I add the "Latest badges" block
     And I log out
     And I log in as "teacher1"
@@ -26,7 +26,6 @@ Feature: Enable Block Badges on the frontpage and view awarded badges
     And I set the following fields to these values:
       | id_name | Badge 1 |
       | id_description | Badge 1 |
-      | id_issuername | Teacher 1 |
     And I upload "blocks/badges/tests/fixtures/badge.png" file to "Image" filemanager
     And I press "Create badge"
     And I select "Manual issue by role" from the "Add badge criteria" singleselect
@@ -34,7 +33,7 @@ Feature: Enable Block Badges on the frontpage and view awarded badges
     And I press "Save"
     And I press "Enable access"
     And I press "Continue"
-    And I follow "Recipients (0)"
+    And I select "Recipients (0)" from the "jump" singleselect
     And I press "Award badge"
     And I set the field "potentialrecipients[]" to "Teacher 1 (teacher1@example.com)"
     And I press "Award badge"

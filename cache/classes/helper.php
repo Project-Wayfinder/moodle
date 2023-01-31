@@ -361,31 +361,39 @@ class cache_helper {
     /**
      * Ensure that the stats array is ready to collect information for the given store and definition.
      * @param string $store
+     * @param string $storeclass
      * @param string $definition A string that identifies the definition.
      * @param int $mode One of cache_store::MODE_*. Since 2.9.
      */
-    protected static function ensure_ready_for_stats($store, $definition, $mode = cache_store::MODE_APPLICATION) {
+    protected static function ensure_ready_for_stats($store, $storeclass, $definition, $mode = cache_store::MODE_APPLICATION) {
         // This function is performance-sensitive, so exit as quickly as possible
         // if we do not need to do anything.
         if (isset(self::$stats[$definition]['stores'][$store])) {
             return;
         }
+
         if (!array_key_exists($definition, self::$stats)) {
             self::$stats[$definition] = array(
                 'mode' => $mode,
                 'stores' => array(
                     $store => array(
+                        'class' => $storeclass,
                         'hits' => 0,
                         'misses' => 0,
                         'sets' => 0,
+                        'iobytes' => cache_store::IO_BYTES_NOT_SUPPORTED,
+                        'locks' => 0,
                     )
                 )
             );
         } else if (!array_key_exists($store, self::$stats[$definition]['stores'])) {
             self::$stats[$definition]['stores'][$store] = array(
+                'class' => $storeclass,
                 'hits' => 0,
                 'misses' => 0,
                 'sets' => 0,
+                'iobytes' => cache_store::IO_BYTES_NOT_SUPPORTED,
+                'locks' => 0,
             );
         }
     }
@@ -418,16 +426,31 @@ class cache_helper {
      * In Moodle 2.9 the $definition argument changed from accepting only a string to accepting a string or a
      * cache_definition instance. It is preferable to pass a cache definition instance.
      *
+     * In Moodle 3.9 the first argument changed to also accept a cache_store.
+     *
      * @internal
-     * @param cache_definition $store
+     * @param string|cache_store $store
      * @param cache_definition $definition You used to be able to pass a string here, however that is deprecated please pass the
      *      actual cache_definition object now.
      * @param int $hits The number of hits to record (by default 1)
+     * @param int $readbytes Number of bytes read from the cache or cache_store::IO_BYTES_NOT_SUPPORTED
      */
-    public static function record_cache_hit($store, $definition, $hits = 1) {
+    public static function record_cache_hit($store, $definition, int $hits = 1, int $readbytes = cache_store::IO_BYTES_NOT_SUPPORTED): void {
+        $storeclass = '';
+        if ($store instanceof cache_store) {
+            $storeclass = get_class($store);
+            $store = $store->my_name();
+        }
         list($definitionstr, $mode) = self::get_definition_stat_id_and_mode($definition);
-        self::ensure_ready_for_stats($store, $definitionstr, $mode);
+        self::ensure_ready_for_stats($store, $storeclass, $definitionstr, $mode);
         self::$stats[$definitionstr]['stores'][$store]['hits'] += $hits;
+        if ($readbytes !== cache_store::IO_BYTES_NOT_SUPPORTED) {
+            if (self::$stats[$definitionstr]['stores'][$store]['iobytes'] === cache_store::IO_BYTES_NOT_SUPPORTED) {
+                self::$stats[$definitionstr]['stores'][$store]['iobytes'] = $readbytes;
+            } else {
+                self::$stats[$definitionstr]['stores'][$store]['iobytes'] += $readbytes;
+            }
+        }
     }
 
     /**
@@ -436,15 +459,22 @@ class cache_helper {
      * In Moodle 2.9 the $definition argument changed from accepting only a string to accepting a string or a
      * cache_definition instance. It is preferable to pass a cache definition instance.
      *
+     * In Moodle 3.9 the first argument changed to also accept a cache_store.
+     *
      * @internal
-     * @param string $store
+     * @param string|cache_store $store
      * @param cache_definition $definition You used to be able to pass a string here, however that is deprecated please pass the
      *      actual cache_definition object now.
      * @param int $misses The number of misses to record (by default 1)
      */
     public static function record_cache_miss($store, $definition, $misses = 1) {
+        $storeclass = '';
+        if ($store instanceof cache_store) {
+            $storeclass = get_class($store);
+            $store = $store->my_name();
+        }
         list($definitionstr, $mode) = self::get_definition_stat_id_and_mode($definition);
-        self::ensure_ready_for_stats($store, $definitionstr, $mode);
+        self::ensure_ready_for_stats($store, $storeclass, $definitionstr, $mode);
         self::$stats[$definitionstr]['stores'][$store]['misses'] += $misses;
     }
 
@@ -454,16 +484,32 @@ class cache_helper {
      * In Moodle 2.9 the $definition argument changed from accepting only a string to accepting a string or a
      * cache_definition instance. It is preferable to pass a cache definition instance.
      *
+     * In Moodle 3.9 the first argument changed to also accept a cache_store.
+     *
      * @internal
-     * @param string $store
+     * @param string|cache_store $store
      * @param cache_definition $definition You used to be able to pass a string here, however that is deprecated please pass the
      *      actual cache_definition object now.
      * @param int $sets The number of sets to record (by default 1)
+     * @param int $writebytes Number of bytes written to the cache or cache_store::IO_BYTES_NOT_SUPPORTED
      */
-    public static function record_cache_set($store, $definition, $sets = 1) {
+    public static function record_cache_set($store, $definition, int $sets = 1,
+            int $writebytes = cache_store::IO_BYTES_NOT_SUPPORTED) {
+        $storeclass = '';
+        if ($store instanceof cache_store) {
+            $storeclass = get_class($store);
+            $store = $store->my_name();
+        }
         list($definitionstr, $mode) = self::get_definition_stat_id_and_mode($definition);
-        self::ensure_ready_for_stats($store, $definitionstr, $mode);
+        self::ensure_ready_for_stats($store, $storeclass, $definitionstr, $mode);
         self::$stats[$definitionstr]['stores'][$store]['sets'] += $sets;
+        if ($writebytes !== cache_store::IO_BYTES_NOT_SUPPORTED) {
+            if (self::$stats[$definitionstr]['stores'][$store]['iobytes'] === cache_store::IO_BYTES_NOT_SUPPORTED) {
+                self::$stats[$definitionstr]['stores'][$store]['iobytes'] = $writebytes;
+            } else {
+                self::$stats[$definitionstr]['stores'][$store]['iobytes'] += $writebytes;
+            }
+        }
     }
 
     /**
@@ -588,7 +634,7 @@ class cache_helper {
      */
     public static function hash_key($key, cache_definition $definition) {
         if ($definition->uses_simple_keys()) {
-            if (debugging() && preg_match('#[^a-zA-Z0-9_]#', $key)) {
+            if (debugging() && preg_match('#[^a-zA-Z0-9_]#', $key ?? '')) {
                 throw new coding_exception('Cache definition '.$definition->get_id().' requires simple keys. Invalid key provided.', $key);
             }
             // We put the key first so that we can be sure the start of the key changes.
@@ -804,7 +850,7 @@ class cache_helper {
         global $CFG;
         if ($stores === null) {
             require_once($CFG->dirroot.'/cache/locallib.php');
-            $stores = cache_administration_helper::get_store_instance_summaries();
+            $stores = core_cache\administration_helper::get_store_instance_summaries();
         }
         $warnings = array();
         foreach ($stores as $store) {

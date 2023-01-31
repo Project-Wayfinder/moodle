@@ -1,12 +1,12 @@
 <?php
 /*
- * Copyright 2017 MongoDB, Inc.
+ * Copyright 2017-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,22 +17,27 @@
 
 namespace MongoDB;
 
-use MongoDB\BSON\Serializable;
-use MongoDB\Driver\Cursor;
+use Iterator;
+use MongoDB\Driver\CursorId;
 use MongoDB\Driver\Exception\ConnectionException;
 use MongoDB\Driver\Exception\RuntimeException;
 use MongoDB\Driver\Exception\ServerException;
-use MongoDB\Exception\InvalidArgumentException;
+use MongoDB\Exception\BadMethodCallException;
 use MongoDB\Exception\ResumeTokenException;
-use IteratorIterator;
-use Iterator;
+use MongoDB\Model\ChangeStreamIterator;
+use ReturnTypeWillChange;
+
+use function call_user_func;
+use function in_array;
 
 /**
  * Iterator for a change stream.
  *
+ * @psalm-type ResumeCallable = callable(array|object|null, bool): ChangeStreamIterator
+ *
  * @api
  * @see \MongoDB\Collection::watch()
- * @see http://docs.mongodb.org/manual/reference/command/changeStream/
+ * @see https://mongodb.com/docs/manual/reference/method/db.watch/#mongodb-method-db.watch
  */
 class ChangeStream implements Iterator
 {
@@ -40,189 +45,240 @@ class ChangeStream implements Iterator
      * @deprecated 1.4
      * @todo Remove this in 2.0 (see: PHPLIB-360)
      */
-    const CURSOR_NOT_FOUND = 43;
+    public const CURSOR_NOT_FOUND = 43;
 
-    private static $errorCodeCappedPositionLost = 136;
-    private static $errorCodeInterrupted = 11601;
-    private static $errorCodeCursorKilled = 237;
+    /** @var int */
+    private static $cursorNotFound = 43;
 
-    private $resumeToken;
+    /** @var int[] */
+    private static $resumableErrorCodes = [
+        6, // HostUnreachable
+        7, // HostNotFound
+        89, // NetworkTimeout
+        91, // ShutdownInProgress
+        189, // PrimarySteppedDown
+        262, // ExceededTimeLimit
+        9001, // SocketException
+        10107, // NotPrimary
+        11600, // InterruptedAtShutdown
+        11602, // InterruptedDueToReplStateChange
+        13435, // NotPrimaryNoSecondaryOk
+        13436, // NotPrimaryOrSecondary
+        63, // StaleShardVersion
+        150, // StaleEpoch
+        13388, // StaleConfig
+        234, // RetryChangeStream
+        133, // FailedToSatisfyReadPreference
+    ];
+
+    /** @var int */
+    private static $wireVersionForResumableChangeStreamError = 9;
+
+    /** @var ResumeCallable|null */
     private $resumeCallable;
-    private $csIt;
+
+    /** @var ChangeStreamIterator */
+    private $iterator;
+
+    /** @var integer */
     private $key = 0;
+
+    /**
+     * Whether the change stream has advanced to its first result. This is used
+     * to determine whether $key should be incremented after an iteration event.
+     *
+     * @var boolean
+     */
     private $hasAdvanced = false;
 
     /**
-     * Constructor.
-     *
      * @internal
-     * @param Cursor $cursor
-     * @param callable $resumeCallable
+     *
+     * @param ResumeCallable $resumeCallable
      */
-    public function __construct(Cursor $cursor, callable $resumeCallable)
+    public function __construct(ChangeStreamIterator $iterator, callable $resumeCallable)
     {
+        $this->iterator = $iterator;
         $this->resumeCallable = $resumeCallable;
-        $this->csIt = new IteratorIterator($cursor);
     }
 
     /**
-     * @see http://php.net/iterator.current
+     * @see https://php.net/iterator.current
      * @return mixed
      */
+    #[ReturnTypeWillChange]
     public function current()
     {
-        return $this->csIt->current();
+        return $this->iterator->current();
     }
 
     /**
-     * @return \MongoDB\Driver\CursorId
+     * @return CursorId
      */
     public function getCursorId()
     {
-        return $this->csIt->getInnerIterator()->getId();
+        return $this->iterator->getInnerIterator()->getId();
     }
 
     /**
-     * @see http://php.net/iterator.key
+     * Returns the resume token for the iterator's current position.
+     *
+     * Null may be returned if no change documents have been iterated and the
+     * server did not include a postBatchResumeToken in its aggregate or getMore
+     * command response.
+     *
+     * @return array|object|null
+     */
+    public function getResumeToken()
+    {
+        return $this->iterator->getResumeToken();
+    }
+
+    /**
+     * @see https://php.net/iterator.key
      * @return mixed
      */
+    #[ReturnTypeWillChange]
     public function key()
     {
         if ($this->valid()) {
             return $this->key;
         }
+
         return null;
     }
 
     /**
-     * @see http://php.net/iterator.next
+     * @see https://php.net/iterator.next
      * @return void
+     * @throws ResumeTokenException
      */
+    #[ReturnTypeWillChange]
     public function next()
     {
         try {
-            $this->csIt->next();
-            if ($this->valid()) {
-                if ($this->hasAdvanced) {
-                    $this->key++;
-                }
-                $this->hasAdvanced = true;
-                $this->resumeToken = $this->extractResumeToken($this->csIt->current());
-            }
-            /* If the cursorId is 0, the server has invalidated the cursor so we
-             * will never perform another getMore. This means that we cannot
-             * resume and we can therefore unset the resumeCallable, which will
-             * free any reference to Watch. This will also free the only
-             * reference to an implicit session, since any such reference
-             * belongs to Watch. */
-            if ((string) $this->getCursorId() === '0') {
-                $this->resumeCallable = null;
-            }
+            $this->iterator->next();
+            $this->onIteration($this->hasAdvanced);
         } catch (RuntimeException $e) {
-            if ($this->isResumableError($e)) {
-                $this->resume();
-            }
+            $this->resumeOrThrow($e);
         }
     }
 
     /**
-     * @see http://php.net/iterator.rewind
+     * @see https://php.net/iterator.rewind
      * @return void
+     * @throws ResumeTokenException
      */
+    #[ReturnTypeWillChange]
     public function rewind()
     {
         try {
-            $this->csIt->rewind();
-            if ($this->valid()) {
-                $this->hasAdvanced = true;
-                $this->resumeToken = $this->extractResumeToken($this->csIt->current());
-            }
-            // As with next(), free the callable once we know it will never be used.
-            if ((string) $this->getCursorId() === '0') {
-                $this->resumeCallable = null;
-            }
+            $this->iterator->rewind();
+            /* Unlike next() and resume(), the decision to increment the key
+             * does not depend on whether the change stream has advanced. This
+             * ensures that multiple calls to rewind() do not alter state. */
+            $this->onIteration(false);
         } catch (RuntimeException $e) {
-            if ($this->isResumableError($e)) {
-                $this->resume();
-            }
+            $this->resumeOrThrow($e);
         }
     }
 
     /**
-     * @see http://php.net/iterator.valid
+     * @see https://php.net/iterator.valid
      * @return boolean
      */
+    #[ReturnTypeWillChange]
     public function valid()
     {
-        return $this->csIt->valid();
-    }
-
-    /**
-     * Extracts the resume token (i.e. "_id" field) from the change document.
-     *
-     * @param array|document $document Change document
-     * @return mixed
-     * @throws InvalidArgumentException
-     * @throws ResumeTokenException if the resume token is not found or invalid
-     */
-    private function extractResumeToken($document)
-    {
-        if ( ! is_array($document) && ! is_object($document)) {
-            throw InvalidArgumentException::invalidType('$document', $document, 'array or object');
-        }
-
-        if ($document instanceof Serializable) {
-            return $this->extractResumeToken($document->bsonSerialize());
-        }
-
-        $resumeToken = is_array($document)
-            ? (isset($document['_id']) ? $document['_id'] : null)
-            : (isset($document->_id) ? $document->_id : null);
-
-        if ( ! isset($resumeToken)) {
-            throw ResumeTokenException::notFound();
-        }
-
-        if ( ! is_array($resumeToken) && ! is_object($resumeToken)) {
-            throw ResumeTokenException::invalidType($resumeToken);
-        }
-
-        return $resumeToken;
+        return $this->iterator->valid();
     }
 
     /**
      * Determines if an exception is a resumable error.
      *
      * @see https://github.com/mongodb/specifications/blob/master/source/change-streams/change-streams.rst#resumable-error
-     * @param RuntimeException $exception
-     * @return boolean
      */
-    private function isResumableError(RuntimeException $exception)
+    private function isResumableError(RuntimeException $exception): bool
     {
         if ($exception instanceof ConnectionException) {
             return true;
         }
 
-        if ( ! $exception instanceof ServerException) {
+        if (! $exception instanceof ServerException) {
             return false;
         }
 
-        if (in_array($exception->getCode(), [self::$errorCodeCappedPositionLost, self::$errorCodeCursorKilled, self::$errorCodeInterrupted])) {
-            return false;
+        if ($exception->getCode() === self::$cursorNotFound) {
+            return true;
         }
 
-        return true;
+        if (server_supports_feature($this->iterator->getServer(), self::$wireVersionForResumableChangeStreamError)) {
+            return $exception->hasErrorLabel('ResumableChangeStreamError');
+        }
+
+        return in_array($exception->getCode(), self::$resumableErrorCodes);
     }
 
     /**
-     * Creates a new changeStream after a resumable server error.
+     * Perform housekeeping after an iteration event.
      *
-     * @return void
+     * @param boolean $incrementKey Increment $key if there is a current result
+     * @throws ResumeTokenException
      */
-    private function resume()
+    private function onIteration(bool $incrementKey): void
     {
-        $newChangeStream = call_user_func($this->resumeCallable, $this->resumeToken);
-        $this->csIt = $newChangeStream->csIt;
-        $this->csIt->rewind();
+        /* If the cursorId is 0, the server has invalidated the cursor and we
+         * will never perform another getMore nor need to resume since any
+         * remaining results (up to and including the invalidate event) will
+         * have been received in the last response. Therefore, we can unset the
+         * resumeCallable. This will free any reference to Watch as well as the
+         * only reference to any implicit session created therein. */
+        if ((string) $this->getCursorId() === '0') {
+            $this->resumeCallable = null;
+        }
+
+        /* Return early if there is not a current result. Avoid any attempt to
+         * increment the iterator's key. */
+        if (! $this->valid()) {
+            return;
+        }
+
+        if ($incrementKey) {
+            $this->key++;
+        }
+
+        $this->hasAdvanced = true;
+    }
+
+    /**
+     * Recreates the ChangeStreamIterator after a resumable server error.
+     */
+    private function resume(): void
+    {
+        if (! $this->resumeCallable) {
+            throw new BadMethodCallException('Cannot resume a closed change stream.');
+        }
+
+        $this->iterator = call_user_func($this->resumeCallable, $this->getResumeToken(), $this->hasAdvanced);
+
+        $this->iterator->rewind();
+
+        $this->onIteration($this->hasAdvanced);
+    }
+
+    /**
+     * Either resumes after a resumable error or re-throws the exception.
+     *
+     * @throws RuntimeException
+     */
+    private function resumeOrThrow(RuntimeException $exception): void
+    {
+        if ($this->isResumableError($exception)) {
+            $this->resume();
+
+            return;
+        }
+
+        throw $exception;
     }
 }

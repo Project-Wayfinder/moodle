@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,10 +17,13 @@
 
 namespace MongoDB\Model;
 
-use MongoDB\BSON\Serializable;
-use MongoDB\BSON\Unserializable;
 use ArrayObject;
 use JsonSerializable;
+use MongoDB\BSON\Serializable;
+use MongoDB\BSON\Unserializable;
+use ReturnTypeWillChange;
+
+use function MongoDB\recursive_copy;
 
 /**
  * Model class for a BSON document.
@@ -38,34 +41,31 @@ class BSONDocument extends ArrayObject implements JsonSerializable, Serializable
     public function __clone()
     {
         foreach ($this as $key => $value) {
-            $this[$key] = \MongoDB\recursive_copy($value);
+            $this[$key] = recursive_copy($value);
         }
     }
 
     /**
-     * Constructor.
-     *
      * This overrides the parent constructor to allow property access of entries
      * by default.
      *
-     * @see http://php.net/arrayobject.construct
+     * @see https://php.net/arrayobject.construct
      */
-    public function __construct($input = [], $flags = ArrayObject::ARRAY_AS_PROPS, $iterator_class = 'ArrayIterator')
+    public function __construct(array $input = [], int $flags = ArrayObject::ARRAY_AS_PROPS, string $iteratorClass = 'ArrayIterator')
     {
-        parent::__construct($input, $flags, $iterator_class);
+        parent::__construct($input, $flags, $iteratorClass);
     }
 
     /**
      * Factory method for var_export().
      *
-     * @see http://php.net/oop5.magic#object.set-state
-     * @see http://php.net/var-export
-     * @param array $properties
+     * @see https://php.net/oop5.magic#object.set-state
+     * @see https://php.net/var-export
      * @return self
      */
     public static function __set_state(array $properties)
     {
-        $document = new static;
+        $document = new static();
         $document->exchangeArray($properties);
 
         return $document;
@@ -74,9 +74,10 @@ class BSONDocument extends ArrayObject implements JsonSerializable, Serializable
     /**
      * Serialize the document to BSON.
      *
-     * @see http://php.net/mongodb-bson-serializable.bsonserialize
+     * @see https://php.net/mongodb-bson-serializable.bsonserialize
      * @return object
      */
+    #[ReturnTypeWillChange]
     public function bsonSerialize()
     {
         return (object) $this->getArrayCopy();
@@ -85,9 +86,10 @@ class BSONDocument extends ArrayObject implements JsonSerializable, Serializable
     /**
      * Unserialize the document to BSON.
      *
-     * @see http://php.net/mongodb-bson-unserializable.bsonunserialize
+     * @see https://php.net/mongodb-bson-unserializable.bsonunserialize
      * @param array $data Array data
      */
+    #[ReturnTypeWillChange]
     public function bsonUnserialize(array $data)
     {
         parent::__construct($data, ArrayObject::ARRAY_AS_PROPS);
@@ -96,9 +98,10 @@ class BSONDocument extends ArrayObject implements JsonSerializable, Serializable
     /**
      * Serialize the array to JSON.
      *
-     * @see http://php.net/jsonserializable.jsonserialize
+     * @see https://php.net/jsonserializable.jsonserialize
      * @return object
      */
+    #[ReturnTypeWillChange]
     public function jsonSerialize()
     {
         return (object) $this->getArrayCopy();

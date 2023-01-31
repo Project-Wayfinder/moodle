@@ -278,7 +278,12 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
 
         // Build the WHERE condition for the sub-query.
         if (!empty($subqueryconditions)) {
-            $subquerywhere = 'WHERE ' . implode(" OR ", $subqueryconditions);
+            $unionstartquery = "SELECT modulename, instance, eventtype, priority
+                                  FROM {event} ev
+                                 WHERE ";
+            $subqueryunion = '('.$unionstartquery . implode(" UNION $unionstartquery ", $subqueryconditions).')';
+        } else {
+            $subqueryunion = '{event}';
         }
 
         // Merge subquery parameters to the parameters of the main query.
@@ -291,12 +296,11 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
                             ev.instance,
                             ev.eventtype,
                             MIN(ev.priority) as priority
-                       FROM {event} ev
-                      $subquerywhere
+                       FROM $subqueryunion ev
                    GROUP BY ev.modulename, ev.instance, ev.eventtype";
 
         // Build the main query.
-        $sql = "SELECT e.*
+        $sql = "SELECT e.*, c.fullname AS coursefullname, c.shortname AS courseshortname
                   FROM {event} e
             INNER JOIN ($subquery) fe
                     ON e.modulename = fe.modulename
@@ -305,6 +309,8 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
                        AND (e.priority = fe.priority OR (e.priority IS NULL AND fe.priority IS NULL))
              LEFT JOIN {modules} m
                     ON e.modulename = m.name
+             LEFT JOIN {course} c
+                    ON c.id = e.courseid
                  WHERE (m.visible = 1 OR m.visible IS NULL) AND $whereclause
               ORDER BY " . ($ordersql ? $ordersql : "e.timestart");
 

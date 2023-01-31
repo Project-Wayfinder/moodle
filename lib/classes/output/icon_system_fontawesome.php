@@ -53,6 +53,7 @@ class icon_system_fontawesome extends icon_system_font {
     public function get_core_icon_map() {
         return [
             'core:docs' => 'fa-info-circle',
+            'core:book' => 'fa-book',
             'core:help' => 'fa-question-circle text-info',
             'core:req' => 'fa-exclamation-circle text-danger',
             'core:a/add_file' => 'fa-file-o',
@@ -85,6 +86,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:e/bold' => 'fa-bold',
             'core:e/bullet_list' => 'fa-list-ul',
             'core:e/cancel' => 'fa-times',
+            'core:e/cancel_solid_circle' => 'fas fa-times-circle',
             'core:e/cell_props' => 'fa-info',
             'core:e/cite' => 'fa-quote-right',
             'core:e/cleanup_messy_code' => 'fa-eraser',
@@ -196,6 +198,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/backup' => 'fa-file-zip-o',
             'core:i/badge' => 'fa-shield',
             'core:i/breadcrumbdivider' => 'fa-angle-right',
+            'core:i/bullhorn' => 'fa-bullhorn',
             'core:i/calc' => 'fa-calculator',
             'core:i/calendar' => 'fa-calendar',
             'core:i/calendareventdescription' => 'fa-align-left',
@@ -207,8 +210,8 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/cohort' => 'fa-users',
             'core:i/competencies' => 'fa-check-square-o',
             'core:i/completion_self' => 'fa-user-o',
+            'core:i/contentbank' => 'fa-paint-brush',
             'core:i/dashboard' => 'fa-tachometer',
-            'core:i/lock' => 'fa-lock',
             'core:i/categoryevent' => 'fa-cubes',
             'core:i/course' => 'fa-graduation-cap',
             'core:i/courseevent' => 'fa-graduation-cap',
@@ -223,8 +226,9 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/emojicategoryflags' => 'fa-flag',
             'core:i/emojicategoryfooddrink' => 'fa-cutlery',
             'core:i/emojicategoryobjects' => 'fa-lightbulb-o',
+            'core:i/emojicategorypeoplebody' => 'fa-male',
             'core:i/emojicategoryrecent' => 'fa-clock-o',
-            'core:i/emojicategorysmileyspeople' => 'fa-smile-o',
+            'core:i/emojicategorysmileysemotion' => 'fa-smile-o',
             'core:i/emojicategorysymbols' => 'fa-heart',
             'core:i/emojicategorytravelplaces' => 'fa-plane',
             'core:i/edit' => 'fa-pencil',
@@ -234,6 +238,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/enrolusers' => 'fa-user-plus',
             'core:i/expired' => 'fa-exclamation text-warning',
             'core:i/export' => 'fa-download',
+            'core:i/externallink' => 'fa-external-link',
             'core:i/files' => 'fa-file',
             'core:i/filter' => 'fa-filter',
             'core:i/flagged' => 'fa-flag',
@@ -284,8 +289,9 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/news' => 'fa-newspaper-o',
             'core:i/next' => 'fa-chevron-right',
             'core:i/nosubcat' => 'fa-plus-square-o',
-            'core:i/notifications' => 'fa-bell',
+            'core:i/notifications' => 'fa-bell-o',
             'core:i/open' => 'fa-folder-open',
+            'core:i/otherevent' => 'fa-calendar',
             'core:i/outcomes' => 'fa-tasks',
             'core:i/payment' => 'fa-money',
             'core:i/permissionlock' => 'fa-lock',
@@ -320,6 +326,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/show' => 'fa-eye-slash',
             'core:i/siteevent' => 'fa-globe',
             'core:i/star' => 'fa-star',
+            'core:i/star-o' => 'fa-star-o',
             'core:i/star-rating' => 'fa-star',
             'core:i/stats' => 'fa-line-chart',
             'core:i/switch' => 'fa-exchange',
@@ -331,6 +338,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/unflagged' => 'fa-flag-o',
             'core:i/unlock' => 'fa-unlock',
             'core:i/up' => 'fa-arrow-up',
+            'core:i/upload' => 'fa-upload',
             'core:i/userevent' => 'fa-user',
             'core:i/user' => 'fa-user',
             'core:i/users' => 'fa-users',
@@ -338,6 +346,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/warning' => 'fa-exclamation text-warning',
             'core:i/window_close' => 'fa-window-close',
             'core:i/withsubcat' => 'fa-plus-square',
+            'core:i/language' => 'fa-language',
             'core:m/USD' => 'fa-usd',
             'core:t/addcontact' => 'fa-address-card',
             'core:t/add' => 'fa-plus',
@@ -349,15 +358,23 @@ class icon_system_fontawesome extends icon_system_font {
             'core:t/block' => 'fa-ban',
             'core:t/block_to_dock_rtl' => 'fa-chevron-right',
             'core:t/block_to_dock' => 'fa-chevron-left',
+            'core:t/blocks_drawer' => 'fa-chevron-left',
+            'core:t/blocks_drawer_rtl' => 'fa-chevron-right',
             'core:t/calc_off' => 'fa-calculator', // TODO: Change to better icon once we have stacked icon support or more icons.
             'core:t/calc' => 'fa-calculator',
             'core:t/check' => 'fa-check',
+            'core:t/clipboard' => 'fa-clipboard',
             'core:t/cohort' => 'fa-users',
             'core:t/collapsed_empty_rtl' => 'fa-caret-square-o-left',
             'core:t/collapsed_empty' => 'fa-caret-square-o-right',
             'core:t/collapsed_rtl' => 'fa-caret-left',
             'core:t/collapsed' => 'fa-caret-right',
             'core:t/collapsedcaret' => 'fa-caret-right',
+            'core:t/collapsedchevron' => 'fa-chevron-right',
+            'core:t/collapsedchevron_rtl' => 'fa-chevron-left',
+            'core:t/completion_complete' => 'fa-circle',
+            'core:t/completion_fail' => 'fa-times',
+            'core:t/completion_incomplete' => 'fa-circle-thin',
             'core:t/contextmenu' => 'fa-cog',
             'core:t/copy' => 'fa-copy',
             'core:t/delete' => 'fa-trash',
@@ -377,25 +394,29 @@ class icon_system_fontawesome extends icon_system_font {
             'core:t/emptystar' => 'fa-star-o',
             'core:t/enrolusers' => 'fa-user-plus',
             'core:t/expanded' => 'fa-caret-down',
+            'core:t/expandedchevron' => 'fa-chevron-down',
             'core:t/go' => 'fa-play',
             'core:t/grades' => 'fa-table',
             'core:t/groupn' => 'fa-user',
             'core:t/groups' => 'fa-user-circle',
             'core:t/groupv' => 'fa-user-circle-o',
             'core:t/hide' => 'fa-eye',
+            'core:t/index_drawer' => 'fa-list',
             'core:t/left' => 'fa-arrow-left',
             'core:t/less' => 'fa-caret-up',
+            'core:t/life-ring' => 'fa-life-ring',
             'core:t/locked' => 'fa-lock',
             'core:t/lock' => 'fa-unlock',
             'core:t/locktime' => 'fa-lock',
             'core:t/markasread' => 'fa-check',
             'core:t/messages' => 'fa-comments',
-            'core:t/message' => 'fa-comment',
+            'core:t/message' => 'fa-comment-o',
             'core:t/more' => 'fa-caret-down',
             'core:t/move' => 'fa-arrows-v',
             'core:t/online' => 'fa-circle',
             'core:t/passwordunmask-edit' => 'fa-pencil',
             'core:t/passwordunmask-reveal' => 'fa-eye',
+            'core:t/play' => 'fa-play',
             'core:t/portfolioadd' => 'fa-plus',
             'core:t/preferences' => 'fa-wrench',
             'core:t/preview' => 'fa-search-plus',
@@ -434,7 +455,10 @@ class icon_system_fontawesome extends icon_system_font {
         if ($this->map === []) {
             $cache = \cache::make('core', 'fontawesomeiconmapping');
 
-            $this->map = $cache->get('mapping');
+            // Create different mapping keys for different icon system classes, there may be several different
+            // themes on the same site.
+            $mapkey = 'mapping_'.preg_replace('/[^a-zA-Z0-9_]/', '_', get_class($this));
+            $this->map = $cache->get($mapkey);
 
             if (empty($this->map)) {
                 $this->map = $this->get_core_icon_map();
@@ -448,7 +472,7 @@ class icon_system_fontawesome extends icon_system_font {
                         }
                     }
                 }
-                $cache->set('mapping', $this->map);
+                $cache->set($mapkey, $this->map);
             }
 
         }
@@ -472,8 +496,13 @@ class icon_system_fontawesome extends icon_system_font {
         if (isset($icon->attributes['aria-hidden'])) {
             $data['aria-hidden'] = $icon->attributes['aria-hidden'];
         }
+
+        // Flipping help icon direction in right-to-left languages.
+        if (right_to_left() && $data['key'] == "fa-question-circle text-info") {
+            $data['extraclasses'] = "fa-flip-horizontal";
+        }
+
         return $output->render_from_template('core/pix_icon_fontawesome', $data);
     }
 
 }
-

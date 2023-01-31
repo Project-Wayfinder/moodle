@@ -488,7 +488,7 @@ class repository_type implements cacheable_object {
  * This is the base class of the repository class.
  *
  * To create repository plugin, see: {@link http://docs.moodle.org/dev/Repository_plugins}
- * See an example: {@link repository_boxnet}
+ * See an example: repository_dropbox
  *
  * @package   core_repository
  * @copyright 2009 Dongsheng Cai {@link http://dongsheng.org}
@@ -890,7 +890,7 @@ abstract class repository implements cacheable_object {
         // the file needs to copied to draft area
         $stored_file = self::get_moodle_file($source);
         if ($maxbytes != -1 && $stored_file->get_filesize() > $maxbytes) {
-            $maxbytesdisplay = display_size($maxbytes);
+            $maxbytesdisplay = display_size($maxbytes, 0);
             throw new file_exception('maxbytesfile', (object) array('file' => $filerecord['filename'],
                                                                     'size' => $maxbytesdisplay));
         }
@@ -1012,10 +1012,17 @@ abstract class repository implements cacheable_object {
         global $DB, $CFG, $USER;
 
         // Fill $args attributes with default values unless specified
-        if (!isset($args['currentcontext']) || !($args['currentcontext'] instanceof context)) {
-            $current_context = context_system::instance();
+        if (isset($args['currentcontext'])) {
+            if ($args['currentcontext'] instanceof context) {
+                $current_context = $args['currentcontext'];
+            } else {
+                debugging('currentcontext passed to repository::get_instances was ' .
+                        'not a context object. Using system context instead, but ' .
+                        'you should probably fix your code.', DEBUG_DEVELOPER);
+                $current_context = context_system::instance();
+            }
         } else {
-            $current_context = $args['currentcontext'];
+            $current_context = context_system::instance();
         }
         $args['currentcontext'] = $current_context->id;
         $contextids = array();
@@ -1728,7 +1735,7 @@ abstract class repository implements cacheable_object {
             // files that are references to local files are already in moodle filepool
             // just validate the size
             if ($maxbytes > 0 && $file->get_filesize() > $maxbytes) {
-                $maxbytesdisplay = display_size($maxbytes);
+                $maxbytesdisplay = display_size($maxbytes, 0);
                 throw new file_exception('maxbytesfile', (object) array('file' => $file->get_filename(),
                                                                         'size' => $maxbytesdisplay));
             }
@@ -1736,7 +1743,7 @@ abstract class repository implements cacheable_object {
         } else {
             if ($maxbytes > 0 && $file->get_filesize() > $maxbytes) {
                 // note that stored_file::get_filesize() also calls synchronisation
-                $maxbytesdisplay = display_size($maxbytes);
+                $maxbytesdisplay = display_size($maxbytes, 0);
                 throw new file_exception('maxbytesfile', (object) array('file' => $file->get_filename(),
                                                                         'size' => $maxbytesdisplay));
             }
@@ -2139,12 +2146,9 @@ abstract class repository implements cacheable_object {
      * @param array $value
      * @return bool
      */
-    public function filter(&$value) {
+    public function filter($value) {
         $accepted_types = optional_param_array('accepted_types', '', PARAM_RAW);
         if (isset($value['children'])) {
-            if (!empty($value['children'])) {
-                $value['children'] = array_filter($value['children'], array($this, 'filter'));
-            }
             return true; // always return directories
         } else {
             if ($accepted_types == '*' or empty($accepted_types)
@@ -3115,21 +3119,14 @@ final class repository_type_form extends moodleform {
  *          accepted_types
  */
 function initialise_filepicker($args) {
-    global $CFG, $USER, $PAGE, $OUTPUT;
+    global $CFG, $USER, $PAGE;
     static $templatesinitialized = array();
     require_once($CFG->libdir . '/licenselib.php');
 
     $return = new stdClass();
-    $licenses = array();
-    if (!empty($CFG->licenses)) {
-        $array = explode(',', $CFG->licenses);
-        foreach ($array as $license) {
-            $l = new stdClass();
-            $l->shortname = $license;
-            $l->fullname = get_string($license, 'license');
-            $licenses[] = $l;
-        }
-    }
+
+    $licenses = license_manager::get_licenses();
+
     if (!empty($CFG->sitedefaultlicense)) {
         $return->defaultlicense = $CFG->sitedefaultlicense;
     }
@@ -3173,6 +3170,8 @@ function initialise_filepicker($args) {
         $return->externallink = true;
     }
 
+    $return->rememberuserlicensepref = (bool) get_config(null, 'rememberuserlicensepref');
+
     $return->userprefs = array();
     $return->userprefs['recentrepository'] = get_user_preferences('filepicker_recentrepository', '');
     $return->userprefs['recentlicense'] = get_user_preferences('filepicker_recentlicense', '');
@@ -3207,5 +3206,105 @@ function initialise_filepicker($args) {
     if (sizeof($templates)) {
         $PAGE->requires->js_init_call('M.core_filepicker.set_templates', array($templates), true);
     }
+    return $return;
+}
+
+/**
+ * Convenience function to handle deletion of files.
+ *
+ * @param object $context The context where the delete is called
+ * @param string $component component
+ * @param string $filearea filearea
+ * @param int $itemid the item id
+ * @param array $files Array of files object with each item having filename/filepath as values
+ * @return array $return Array of strings matching up to the parent directory of the deleted files
+ * @throws coding_exception
+ */
+function repository_delete_selected_files($context, string $component, string $filearea, $itemid, array $files) {
+    $fs = get_file_storage();
+    $return = [];
+
+    foreach ($files as $selectedfile) {
+        $filename = clean_filename($selectedfile->filename);
+        $filepath = clean_param($selectedfile->filepath, PARAM_PATH);
+        $filepath = file_correct_filepath($filepath);
+
+        if ($storedfile = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename)) {
+            $parentpath = $storedfile->get_parent_directory()->get_filepath();
+            if ($storedfile->is_directory()) {
+                $files = $fs->get_directory_files($context->id, $component, $filearea, $itemid, $filepath, true);
+                foreach ($files as $file) {
+                    $file->delete();
+                }
+                $storedfile->delete();
+                $return[$parentpath] = "";
+            } else {
+                if ($result = $storedfile->delete()) {
+                    $return[$parentpath] = "";
+                }
+            }
+        }
+    }
+
+    return $return;
+}
+
+/**
+ * Convenience function to handle deletion of files.
+ *
+ * @param object $context The context where the delete is called
+ * @param string $component component
+ * @param string $filearea filearea
+ * @param int $itemid the item id
+ * @param array $files Array of files object with each item having filename/filepath as values
+ * @return array $return Array of strings matching up to the parent directory of the deleted files
+ * @throws coding_exception
+ */
+function repository_download_selected_files($context, string $component, string $filearea, $itemid, array $files) {
+    global $USER;
+    $return = false;
+
+    $zipper = get_file_packer('application/zip');
+    $fs = get_file_storage();
+    // Archive compressed file to an unused draft area.
+    $newdraftitemid = file_get_unused_draft_itemid();
+    $filestoarchive = [];
+
+    foreach ($files as $selectedfile) {
+        $filename = $selectedfile->filename ? clean_filename($selectedfile->filename) : '.'; // Default to '.' for root.
+        $filepath = clean_param($selectedfile->filepath, PARAM_PATH); // Default to '/' for downloadall.
+        $filepath = file_correct_filepath($filepath);
+        $area = file_get_draft_area_info($itemid, $filepath);
+        if ($area['filecount'] == 0 && $area['foldercount'] == 0) {
+            continue;
+        }
+
+        $storedfile = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename);
+        // If it is empty we are downloading a directory.
+        $archivefile = $storedfile->get_filename();
+        if (!$filename || $filename == '.' ) {
+            $foldername = explode('/', trim($filepath, '/'));
+            $folder = trim(array_pop($foldername), '/');
+            $archivefile = $folder ?? '/';
+        }
+
+        $filestoarchive[$archivefile] = $storedfile;
+    }
+    $zippedfile = get_string('files') . '.zip';
+    if ($newfile =
+        $zipper->archive_to_storage(
+            $filestoarchive,
+            $context->id,
+            $component,
+            $filearea,
+            $newdraftitemid,
+            "/",
+            $zippedfile, $USER->id)
+    ) {
+        $return = new stdClass();
+        $return->fileurl = moodle_url::make_draftfile_url($newdraftitemid, '/', $zippedfile)->out();
+        $return->filepath = $filepath;
+    }
+
     return $return;
 }

@@ -47,6 +47,7 @@ define('BLOCK_MYOVERVIEW_CUSTOMFIELD_EMPTY', -1);
  */
 define('BLOCK_MYOVERVIEW_SORTING_TITLE', 'title');
 define('BLOCK_MYOVERVIEW_SORTING_LASTACCESSED', 'lastaccessed');
+define('BLOCK_MYOVERVIEW_SORTING_SHORTNAME', 'shortname');
 
 /**
  * Constants for the user preferences view options
@@ -100,11 +101,12 @@ function block_myoverview_user_preferences() {
 
     $preferences['block_myoverview_user_sort_preference'] = array(
         'null' => NULL_NOT_ALLOWED,
-        'default' => BLOCK_MYOVERVIEW_SORTING_TITLE,
+        'default' => BLOCK_MYOVERVIEW_SORTING_LASTACCESSED,
         'type' => PARAM_ALPHA,
         'choices' => array(
             BLOCK_MYOVERVIEW_SORTING_TITLE,
-            BLOCK_MYOVERVIEW_SORTING_LASTACCESSED
+            BLOCK_MYOVERVIEW_SORTING_LASTACCESSED,
+            BLOCK_MYOVERVIEW_SORTING_SHORTNAME
         )
     );
     $preferences['block_myoverview_user_view_preference'] = array(
@@ -148,7 +150,7 @@ function block_myoverview_user_preferences() {
  * @param stdClass $course The deleted course
  */
 function block_myoverview_pre_course_delete(\stdClass $course) {
-    // Removing any starred courses which have been created for users, for this course.
+    // Removing any favourited courses which have been created for users, for this course.
     $service = \core_favourites\service_factory::get_service_for_component('core_course');
     $service->delete_favourites_by_type_and_item('courses', $course->id);
 }

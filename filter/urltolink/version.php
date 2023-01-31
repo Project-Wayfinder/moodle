@@ -17,14 +17,13 @@
 /**
  * Version details
  *
- * @package    filter
- * @subpackage urltolink
+ * @package    filter_urltolink
  * @copyright  2010 David Mudrak <david@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2019111800;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2019111200;        // Requires this Moodle version
+$plugin->version   = 2022112800;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->requires  = 2022111800;        // Requires this Moodle version.
 $plugin->component = 'filter_urltolink'; // Full name of the plugin (used for diagnostics)

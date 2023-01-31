@@ -41,7 +41,7 @@ class core_enrol_renderer extends plugin_renderer_base {
                             'value'    => $button->label,
                             'disabled' => $button->disabled ? 'disabled' : null,
                             'title'    => $button->tooltip,
-                            'class'    => 'btn btn-secondary my-1');
+                            'class'    => 'btn ' . ($button->primary ? 'btn-primary' : 'btn-secondary'));
 
         if ($button->actions) {
             $id = html_writer::random_id('single_button');
@@ -96,18 +96,10 @@ class core_enrol_renderer extends plugin_renderer_base {
         $table->initialise_javascript();
 
         $content = '';
-        $searchbutton = $table->get_user_search_button();
-        if ($searchbutton) {
-            $content .= $this->output->render($searchbutton);
-        }
         $content .= html_writer::tag('div', get_string('otheruserdesc', 'enrol'), array('class'=>'otherusersdesc'));
         $content .= $this->output->render($table->get_paging_bar());
         $content .= html_writer::table($table);
         $content .= $this->output->render($table->get_paging_bar());
-        $searchbutton = $table->get_user_search_button();
-        if ($searchbutton) {
-            $content .= $this->output->render($searchbutton);
-        }
         return $content;
     }
 
@@ -370,7 +362,7 @@ class course_enrolment_table extends html_table implements renderable {
         $this->sort           = optional_param(self::SORTVAR, self::DEFAULTSORT, PARAM_ALPHANUM);
         $this->sortdirection  = optional_param(self::SORTDIRECTIONVAR, self::DEFAULTSORTDIRECTION, PARAM_ALPHA);
 
-        $this->attributes = array('class'=>'userenrolment');
+        $this->attributes = array('class' => 'userenrolment table-striped');
         if (!in_array($this->sort, self::$sortablefields)) {
             $this->sort = self::DEFAULTSORT;
         }
